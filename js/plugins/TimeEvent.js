@@ -3,6 +3,7 @@
 // MIT License (C) 2017 くらむぼん
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
+// 2018/06/30 時間経過の残り秒数を取得するプラグインコマンドを追加
 // 2017/05/01 ロード後にゲームが再開できない場合があるバグを修正
 // 2017/05/26 対象となるスイッチと変数の番号の表記に\S[x],\V[x]方式を追加
 // 2017/05/27 xxxeveryシリーズとeverystopを追加、引数に分と%を許可
@@ -81,6 +82,14 @@
  * ■everystop すべてのevery系コマンドを中止する
  * TimeEvent everystop
  * 
+ * ■getremain 指定したキー名称(※)に一致するTimeEventの残り秒数を変数に格納する。
+ * TimeEvent getremain 変数番号 キー名称
+ * ※ TimeEvent setkeyで設定したキー名称です。
+ * 
+ * ■setkey 直前に実行したTimeEventにキー名称を設定します。
+ * TimeEvent setkey キー名称
+ * ※キー名称は好きな名称を指定できますが、重複のない名称にしてください。
+ * 
  * ライセンス：
  * このプラグインを利用する時は、作者名をプラグインから削除しないでください。
  * それ以外の制限はありません。お好きなようにどうぞ。
@@ -123,12 +132,19 @@
 	Game_System.prototype.addTimeEvent = function(args) {
 		this._timeEvents = (this._timeEvents || []).filter(function(timeEvent) {return !!timeEvent;});
 		var command = args[0].toLowerCase();
-		var timeEvent = {command: command, minutes: parseFloat(args[1]), rate: parseFloat(args[2]) / 100, target: args[3]};
+		var timeEvent = {command: command, minutes: parseFloat(args[1]), rate: parseFloat(args[2]) / 100, target: args[3], key: ''};
 		switch (command) {
 			case 'everystop':
 				this._timeEvents.forEach(function(timeEvent, index, timeEvents) {
 					if (isEvery(timeEvent)) delete timeEvents[index];
 				});
+				return;
+			case 'setkey':
+				this.setTimeEventKey(args[1]);
+				return;
+			case 'getremain':
+				var remainSecond = this.getTimeRemain(args[2]);
+				$gameVariables.setValue(parseInt(args[1]), remainSecond);
 				return;
 			case 'add':
 			case 'addevery':
@@ -149,6 +165,24 @@
 		if (isEvery(timeEvent)) timeEvent.plusMinutes = timeEvent.minutes;
 		timeEvent.time = Date.now();
 		this._timeEvents.push(timeEvent);
+	};
+
+	Game_System.prototype.setTimeEventKey = function(keyName) {
+		if (!this._timeEvents) {
+			return;
+		}
+		var timeEvent = this._timeEvents[this._timeEvents.length - 1];
+		timeEvent.key = keyName;
+	};
+
+	Game_System.prototype.getTimeRemain = function(keyName) {
+		if (!this._timeEvents) {
+			return 0;
+		}
+		var targetTimeEvent = this._timeEvents.filter(function(timeEvent) {
+			return timeEvent.key === keyName;
+		})[0];
+		return targetTimeEvent ? Math.floor(targetTimeEvent.minutes * 60 - (Date.now() - targetTimeEvent.time) / 1000) : 0;
 	};
 
 	Game_System.prototype.executeTimeEvents = function() {
